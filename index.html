@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Scheduler</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Dokdo&display=swap" rel="stylesheet">
+    <style>
+      html, body { height: 100%; }
+      body {
+        --bg: #991010;
+        --bg-dark: #991010;
+        --panel: #FFCFCF;
+        --panel-inner: #ffecec;
+        --line: #f6cccc;
+        --pill: #F86969;
+        --pill-light: #f9a3a0;
+        --text: #AA0C0C;
+        font-family: 'Dokdo', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* Layer 1: outer coral container */
+      .outer {
+        width: 300px;
+        height: 700px; /* 50px shorter */
+        background: var(--bg);
+        border-radius: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        padding: 0;
+      }
+
+      /* Layer 2: pink panel */
+      .app {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 275px;
+        height: 674px;  /* 50px shorter */
+        box-sizing: border-box;
+        background: #FFCFCF; /* Layer 2 color as requested */
+        border-radius: 24px;
+        box-shadow: 0 8px 18px rgba(0,0,0,0.08) inset;
+        overflow: hidden; /* prevent content from stretching size visually */
+      }
+
+      /* Middle container that holds title, list card, and footer button */
+      .shell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+        padding: 12px 12px 8px 12px;
+        gap: 8px;
+        position: relative; /* allow bottom-right bg sound button */
+      }
+
+      .shell-header { width: 100%; text-align: center; }
+      .shell-header h2 { margin: 0; font-size: 40px; text-align: center;}
+
+      /* Layer 3: times/tasks card */
+      #scheduleWrapper {
+        width: 250px;
+        height: 590px;  /* slightly taller (downwards) */
+        overflow: auto;
+        background: var(--panel-inner);
+        border-radius: 18px;
+        padding: 6px;   /* small inner padding; size held by box-sizing */
+        box-shadow: 0 0 0 4px var(--panel) inset;
+        position: relative;
+        box-sizing: border-box;
+      }
+
+      #schedule {
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--line);
+        border-left: none;
+        border-right: none;
+        max-width: 100%;
+      }
+
+      /* Absolute overlay that holds all task blocks */
+      .tasks-overlay {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        pointer-events: none;
+      }
+
+      .time-slot {
+        border-bottom: 1px solid var(--line);
+        height: 40px;
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        font-size: 25px; /* schedule time size */
+        position: relative;
+        font-family: inherit;
+      }
+
+      .time-slot .time-label {
+        width: 80px;
+        letter-spacing: 1px;
+      }
+
+      .time-slot .task-area {
+        flex: 1;
+        position: relative;
+        height: 100%;
+        margin-left: 10px;
+      }
+
+      .task {
+        position: absolute;
+        left: 0;
+        right: 10px;
+        background: var(--pill);
+        border: 2px solid var(--pill-light);
+        border-radius: 10px;
+        padding: 4px 10px;
+        font-size: 20px;
+        color: #FFFDFD;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 1;
+        font-family: inherit;
+        box-sizing: border-box; /* ensure height accounts for border */
+      }
+
+      .task button {
+        margin-left: 8px;
+        cursor: pointer;
+        background: none;
+        border: none;
+        font-weight: bold;
+        color: #FFFDFD;
+        font-family: inherit;
+        border-radius: 8px; /* rounded hover target */
+        padding: 2px 6px;
+      }
+
+      .add-btn {
+        width: 35px;          /* square width */
+        height: 35px;         /* square height */
+        padding: 0;           /* no extra padding so it's a true square */
+        cursor: pointer;
+        border-radius: 10px;  /* square with slightly rounded corners */
+        border: 2px solid var(--pill-light);
+        background: var(--pill);
+        color: #FFFDFD;
+        font-size: 30px;      /* make '+' bigger; tweak as desired */
+        /*line-height: 1;        keep symbol vertically centered */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        align-self: center;
+        font-family: inherit;
+      }
+
+      /* Modal styles */
+      .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+
+        /* center content */
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal-content {
+        background: var(--panel-inner);
+        padding: 10px 12px;
+        border-radius: 12px;
+        width: 200px;
+        height: 150px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        border: 2px solid var(--pill-light);
+        text-align: center;
+      }
+
+      .modal-content h3 {
+        margin: 0 0 4px 0;
+        font-size: 20px;
+        font-weight: normal;
+        text-transform: lowercase;
+      }
+
+      .modal-content input {
+        padding: 6px 8px;
+        border: 2px solid var(--pill-light);
+        border-radius: 10px;
+        font-family: inherit;
+        font-size: 16px;
+        color: var(--text);
+        background: #FFFDFD;
+        text-align: center;
+      }
+
+      .modal-content input::placeholder {
+        text-align: center;
+      }
+
+      .time-inputs {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .time-inputs select {
+        flex: 1;
+        padding: 8px 28px 8px 10px; /* space for custom chevron */
+        border: 2px solid var(--pill-light);
+        border-radius: 12px;
+        font-family: inherit;
+        font-size: 18px;
+        color: var(--text);
+        background: #FFFDFD;
+        cursor: pointer;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='%23AA0C0C' d='M1 1l5 5 5-5'/></svg>");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        background-size: 12px 8px;
+      }
+
+      /* Focus states for inputs/selects */
+      .modal-content input:focus,
+      .time-inputs select:focus {
+        outline: none;
+        border-color: var(--bg-dark);
+        box-shadow: 0 0 0 3px rgba(229, 127, 122, 0.25);
+        background: #FFFDFD;
+      }
+
+      .modal-actions {
+        margin-top: 4px;
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+      }
+
+      .modal-content button {
+        padding: 4px 10px;
+        cursor: pointer;
+        border-radius: 10px;
+        border: 2px solid var(--pill-light);
+        background: var(--pill);
+        color: #FFFDFD;
+        font-size: 16px;
+        font-family: inherit;
+      }
+
+      /* Button focus/active states */
+      .modal-content button:hover,
+      .modal-content button:focus,
+      .add-btn:hover,
+      .add-btn:focus,
+      .task button:hover,
+      .task button:focus {
+        outline: none;
+        background: var(--bg-dark);
+        border-color: var(--bg-dark);
+        border-radius: 8px;
+      }
+
+      .modal-content button:active,
+      .add-btn:active,
+      .task button:active {
+        transform: translateY(1px);
+        background: #F86969;
+        border-color: #F86969;
+      }
+
+      .footer {
+        padding-top: 10px;
+        display: flex;
+        justify-content: center;
+        margin-bottom: 12px; /* lift '+' a bit */
+      }
+
+      /* Background sound toggle (bottom-right) */
+      #bgSoundToggle {
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+        color: #991010;
+        background: transparent;
+        border: none;
+        font-size: 30px; /* bigger arrow */
+        cursor: pointer;
+        font-family: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="outer">
+      <div class="app">
+        <div class="shell">
+          <div class="shell-header">
+            <h2>schedule</h2>
+          </div>
+          <div id="scheduleWrapper">
+            <div id="schedule"></div>
+          </div>
+          <div class="footer">
+            <button class="add-btn" id="openModal">+</button>
+          </div>
+          <button id="bgSoundToggle">&gt;&gt;</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="taskModal" class="modal">
+      <div class="modal-content">
+        <h3>Add Task</h3>
+        <input id="taskName" type="text" placeholder="task" />
+
+        <div class="time-inputs">
+          <select id="startTime"></select>
+          <span>to</span>
+          <select id="endTime"></select>
+        </div>
+
+        <div class="modal-actions">
+          <button id="saveTask">+</button>
+          <button id="closeModal">x</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>
