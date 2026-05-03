@@ -1,1 +1,1 @@
-# Desktop-scheduler
+desktop scheduler/calendar: desktop app that lets u schedule stuff throughout the day. alerts you when a task time has ended via bird sound effect. has background music. UI is ugly and the tasks look weird.
